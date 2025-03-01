@@ -7,14 +7,18 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
+struct State<'a> {
+    config: wgpu::SurfaceConfiguration,
+    surface: wgpu::Surface<'a>,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    render_pipeline: wgpu::RenderPipeline,
+}
+
 #[derive(Default)]
 struct App<'a> {
     window: Option<Arc<Window>>,
-    config: Option<wgpu::SurfaceConfiguration>,
-    surface: Option<wgpu::Surface<'a>>,
-    device: Option<wgpu::Device>,
-    queue: Option<wgpu::Queue>,
-    render_pipeline: Option<wgpu::RenderPipeline>,
+    state: Option<State<'a>>,
 }
 
 impl<'a> ApplicationHandler for App<'a> {
@@ -115,11 +119,13 @@ impl<'a> ApplicationHandler for App<'a> {
             device.poll(wgpu::Maintain::Wait);
 
             self.window = Some(window);
-            self.config = Some(config);
-            self.surface = Some(surface);
-            self.device = Some(device);
-            self.queue = Some(queue);
-            self.render_pipeline = Some(render_pipeline);
+            self.state = Some(State {
+                config,
+                surface,
+                device,
+                queue,
+                render_pipeline,
+            });
 
             println!("リソースの初期化が完了しました。")
         });
@@ -128,11 +134,13 @@ impl<'a> ApplicationHandler for App<'a> {
     fn window_event(&mut self, target: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Resized(size) => {
-                if let (Some(config), Some(surface), Some(device)) = (
-                    self.config.as_mut(),
-                    self.surface.as_ref(),
-                    self.device.as_ref(),
-                ) {
+                if let Some(State {
+                    config,
+                    surface,
+                    device,
+                    ..
+                }) = self.state.as_mut()
+                {
                     config.width = size.width.max(1);
                     config.height = size.height.max(1);
                     surface.configure(device, config);
@@ -140,30 +148,18 @@ impl<'a> ApplicationHandler for App<'a> {
                 }
             }
             WindowEvent::CloseRequested => {
-                // GPU操作の完了を待つ
-                if let Some(device) = &self.device {
-                    device.poll(wgpu::Maintain::Wait);
-                }
-
-                // リソースを明示的に順番にドロップ
-                self.render_pipeline = None;
-                self.queue = None;
-                self.device = None;
-                self.surface = None;
-                self.config = None;
-                self.window = None; // ウィンドウも明示的にドロップ
-
-                // 最後にイベントループを終了
                 target.exit();
             }
             WindowEvent::RedrawRequested => {
                 // すべてのリソースが存在する場合のみ描画を実行
-                if let (Some(surface), Some(device), Some(queue), Some(render_pipeline)) = (
-                    &self.surface,
-                    &self.device,
-                    &self.queue,
-                    &self.render_pipeline.as_ref(),
-                ) {
+                if let Some(State {
+                    surface,
+                    device,
+                    queue,
+                    render_pipeline,
+                    ..
+                }) = &self.state
+                {
                     match surface.get_current_texture() {
                         Ok(frame) => {
                             let view = frame
