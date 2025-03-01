@@ -210,14 +210,16 @@ impl<'a> ApplicationHandler for App<'a> {
 
 // main関数の追加
 fn main() {
-    // Waylandディスプレイサーバーの使用を無効化し、X11を強制的に使用
-    std::env::set_var("WAYLAND_DISPLAY", "");
+    // 環境変数の設定を unsafe ブロックで囲む
+    unsafe {
+        std::env::set_var("WAYLAND_DISPLAY", "");
+    }
 
     let event_loop = match EventLoop::new() {
         Ok(event_loop) => event_loop,
         Err(e) => {
             eprintln!("アプリケーションエラー: {}", e);
-            std::process::exit(1); // エラー終了
+            std::process::exit(1);
         }
     };
 
@@ -227,10 +229,10 @@ fn main() {
 
     let mut app = App::default();
     match event_loop.run_app(&mut app) {
-        Ok(_) => std::process::exit(0), // 正常終了
+        Ok(_) => std::process::exit(0),
         Err(e) => {
             eprintln!("アプリケーションエラー: {}", e);
-            std::process::exit(1); // エラー終了
+            std::process::exit(1);
         }
     }
 }
